@@ -58,10 +58,6 @@ PSI_CURVE        = os.environ.get("PSI_CURVE", "P-256")
 BLOOM_FILTER_CAPACITY   = int(os.environ.get("BLOOM_FILTER_CAPACITY",   "100000"))
 BLOOM_FILTER_ERROR_RATE = float(os.environ.get("BLOOM_FILTER_ERROR_RATE", "0.001"))
 
-# ─── Celery / Redis ───────────────────────────────────────────────────────────
-CELERY_BROKER_URL      = os.environ.get("CELERY_BROKER_URL",      "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND  = os.environ.get("CELERY_RESULT_BACKEND",  "redis://localhost:6379/0")
-
 # ─── Default Credentials (demo only — change before any deployment) ───────────
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin123"

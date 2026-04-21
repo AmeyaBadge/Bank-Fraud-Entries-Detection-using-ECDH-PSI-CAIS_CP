@@ -1,17 +1,21 @@
 """
 bank_a/app.py
 FastAPI Bank A Node — Querier endpoints and UI routes.
-Runs on port 5001.
+Runs on port 5001. No Celery / Redis required.
 """
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import uuid, hashlib, time, json
+import uuid
+import hashlib
+import time
+import json
+import threading
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-import httpx
 import uvicorn
 import requests
 from fastapi import FastAPI, HTTPException, Request, Depends, Form, Header
@@ -23,11 +27,13 @@ from pydantic import BaseModel
 
 import config
 import bank_a.db_manager as db
-from bank_a.tasks import celery_app, task_run_psi_batch
 from psi_core.data_normalizer import normalize
-from psi_core.ecdh_engine import PSIQuerier
+from psi_core.ecdh_engine import PSIQuerier, _serialize_point, _scalar_mult
 
 # ─── App Setup ────────────────────────────────────────────────────────────────
+
+# In-memory task tracker: task_id → {state, progress, message, result}
+_local_tasks: dict = {}
 
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
@@ -95,7 +101,7 @@ async def do_login(request: Request, username: str = Form(...), password: str = 
     if not user or not check_password_hash(user["password_hash"], password):
         return templates.TemplateResponse(request, "login.html", {"error": "Invalid credentials"})
     request.session["username"] = user["username"]
-    request.session["role"] = user["role"]
+    request.session["role"]     = user["role"]
     return RedirectResponse("/", status_code=303)
 
 
@@ -112,23 +118,23 @@ async def dashboard(request: Request):
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/login")
-    account_count    = db.get_account_count()
-    run_count        = db.get_run_count()
-    total_matches    = db.get_total_matches()
-    last_run         = db.get_last_run_time()
-    severity_dist    = db.get_severity_distribution()
-    run_chart_data   = db.get_recent_run_match_counts()
-    latest_run_id    = db.get_latest_run_id()
-    latest_matches   = db.get_matches_for_run(latest_run_id) if latest_run_id else []
+    account_count  = db.get_account_count()
+    run_count      = db.get_run_count()
+    total_matches  = db.get_total_matches()
+    last_run       = db.get_last_run_time()
+    severity_dist  = db.get_severity_distribution()
+    run_chart_data = db.get_recent_run_match_counts()
+    latest_run_id  = db.get_latest_run_id()
+    latest_matches = db.get_matches_for_run(latest_run_id) if latest_run_id else []
     return templates.TemplateResponse(request, "dashboard.html", {
-        "user": user,
+        "user":          user,
         "account_count": account_count,
-        "run_count": run_count,
+        "run_count":     run_count,
         "total_matches": total_matches,
-        "last_run": last_run,
+        "last_run":      last_run,
         "severity_dist": json.dumps(severity_dist),
-        "run_chart_data": json.dumps(run_chart_data),
-        "latest_matches": latest_matches[:50],
+        "run_chart_data":json.dumps(run_chart_data),
+        "latest_matches":latest_matches[:50],
         "latest_run_id": latest_run_id,
     })
 
@@ -140,10 +146,10 @@ async def history_page(request: Request, page: int = 1):
         return RedirectResponse("/login")
     data = db.get_psi_runs(page=page, per_page=20)
     return templates.TemplateResponse(request, "history.html", {
-        "user": user,
-        "runs": data["runs"],
-        "total": data["total"],
-        "page": page,
+        "user":     user,
+        "runs":     data["runs"],
+        "total":    data["total"],
+        "page":     page,
         "per_page": data["per_page"],
     })
 
@@ -160,10 +166,15 @@ async def lookup_page(request: Request):
 
 @app.post("/api/psi/run-batch")
 async def run_batch_psi(request: Request):
-    user = require_auth(request)
-    run_id = str(uuid.uuid4())
-    # Create Coordinator session first
-    session_id = run_id
+    """
+    Start a full batch PSI run in a background thread.
+    Returns immediately with a task_id for polling progress.
+    """
+    require_auth(request)
+    run_id     = str(uuid.uuid4())
+    session_id = run_id   # fallback if coordinator unavailable
+
+    # Register session with Coordinator
     try:
         coord_resp = requests.post(
             f"{config.COORDINATOR_URL}/api/sessions",
@@ -177,35 +188,60 @@ async def run_batch_psi(request: Request):
         pass  # coordinator unavailable — proceed with local run_id
 
     db.create_psi_run(run_id)
-    task = task_run_psi_batch.delay(run_id, session_id)
-    db.update_psi_run(run_id, "running", celery_task_id=task.id)
-    return {"task_id": task.id, "run_id": run_id, "session_id": session_id}
+
+    task_id = str(uuid.uuid4())
+    tracker = {"state": "PENDING", "progress": 0, "message": "Starting...", "result": None}
+    _local_tasks[task_id] = tracker
+    db.update_psi_run(run_id, "running", celery_task_id=task_id)
+
+    # Run the PSI logic in a real OS thread — does NOT block the event loop
+    from bank_a.tasks import run_psi_batch
+    thread = threading.Thread(
+        target=run_psi_batch,
+        args=(tracker, run_id, session_id),
+        daemon=True,
+        name=f"psi-{run_id[:8]}",
+    )
+    thread.start()
+
+    return {"task_id": task_id, "run_id": run_id, "session_id": session_id}
 
 
 @app.get("/api/task-status/{task_id}")
 async def task_status(task_id: str, request: Request):
+    """Poll the progress of a running batch PSI task."""
     require_auth(request)
-    task = celery_app.AsyncResult(task_id)
-    if task.state == "PENDING":
-        return {"task_id": task_id, "state": "PENDING", "progress": 0, "message": "Waiting in queue...", "result": None}
-    elif task.state == "PROGRESS":
-        meta = task.info or {}
-        return {"task_id": task_id, "state": "PROGRESS", "progress": meta.get("progress", 0), "message": meta.get("message", ""), "result": None}
-    elif task.state == "SUCCESS":
-        return {"task_id": task_id, "state": "SUCCESS", "progress": 100, "message": "Completed", "result": task.result}
-    elif task.state == "FAILURE":
-        return {"task_id": task_id, "state": "FAILURE", "progress": 0, "message": str(task.info), "result": None}
+    tracker = _local_tasks.get(task_id)
+    if not tracker:
+        return {"task_id": task_id, "state": "UNKNOWN", "progress": 0,
+                "message": "Task not found (server restarted?)", "result": None}
+
+    state = tracker["state"]
+    if state == "PENDING":
+        return {"task_id": task_id, "state": "PENDING",   "progress": 0,
+                "message": "Waiting to start...", "result": None}
+    elif state == "PROGRESS":
+        return {"task_id": task_id, "state": "PROGRESS",  "progress": tracker.get("progress", 0),
+                "message": tracker.get("message", ""), "result": None}
+    elif state == "SUCCESS":
+        return {"task_id": task_id, "state": "SUCCESS",   "progress": 100,
+                "message": tracker.get("message", "Completed"), "result": tracker.get("result")}
+    elif state == "FAILURE":
+        return {"task_id": task_id, "state": "FAILURE",   "progress": tracker.get("progress", 0),
+                "message": tracker.get("message", "Unknown error"), "result": None}
     else:
-        return {"task_id": task_id, "state": task.state, "progress": 0, "message": "", "result": None}
+        return {"task_id": task_id, "state": state,       "progress": tracker.get("progress", 0),
+                "message": tracker.get("message", ""), "result": None}
 
 
 class LookupRequest(BaseModel):
-    identifier: str
+    identifier:      str
     identifier_type: str
 
 
 @app.post("/api/psi/lookup")
 async def psi_lite_lookup(req: LookupRequest, request: Request):
+    """PSI-Lite single-identifier check via Bank B's Bloom Filter."""
     require_auth(request)
     start = time.time()
     try:
@@ -213,12 +249,11 @@ async def psi_lite_lookup(req: LookupRequest, request: Request):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    querier = PSIQuerier()
-    pt = querier.hash_to_curve(norm)
-    from psi_core.ecdh_engine import _serialize_point, _scalar_mult
-    encrypted_pt = _scalar_mult(querier._scalar, pt)
-    serialized = _serialize_point(encrypted_pt)
-    enc_str = serialized.decode("utf-8") if isinstance(serialized, bytes) else serialized
+    querier    = PSIQuerier()
+    pt         = querier.hash_to_curve(norm)
+    enc_pt     = _scalar_mult(querier._scalar, pt)
+    serialized = _serialize_point(enc_pt)
+    enc_str    = serialized.decode("utf-8") if isinstance(serialized, bytes) else serialized
 
     try:
         resp = requests.post(
@@ -233,8 +268,7 @@ async def psi_lite_lookup(req: LookupRequest, request: Request):
         raise HTTPException(status_code=502, detail=f"Bank B unreachable: {e}")
 
     latency_ms = round((time.time() - start) * 1000)
-    lookup_id = str(uuid.uuid4())
-    return {"is_match": is_match, "lookup_id": lookup_id, "latency_ms": latency_ms}
+    return {"is_match": is_match, "lookup_id": str(uuid.uuid4()), "latency_ms": latency_ms}
 
 
 @app.get("/api/psi/history")
