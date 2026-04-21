@@ -4,7 +4,6 @@ PSI Platform V2.0
 """
 
 import os
-import secrets
 
 # ─── Database ────────────────────────────────────────────────────────────────
 DB_TYPE = os.environ.get("DB_TYPE", "sqlite")  # 'sqlite' | 'mysql'
@@ -47,8 +46,13 @@ LABEL_ENCRYPTION_KEY = os.environ.get(
     "PLACEHOLDER_32_BYTE_HEX_KEY_REPLACE_IN_PRODUCTION_0000000000000000"
 )
 
-# FastAPI session signing key
-SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", secrets.token_hex(32))
+# FastAPI session signing key — MUST be stable across restarts so cookies remain valid.
+# Override with a strong random value via env var in production:
+#   python -c "import secrets; print(secrets.token_hex(32))"
+SESSION_SECRET_KEY = os.environ.get(
+    "SESSION_SECRET_KEY",
+    "psi-platform-default-session-key-change-in-production-00000000"
+)
 
 # ─── PSI Parameters ───────────────────────────────────────────────────────────
 PSI_MAX_SET_SIZE = int(os.environ.get("PSI_MAX_SET_SIZE", "50000"))

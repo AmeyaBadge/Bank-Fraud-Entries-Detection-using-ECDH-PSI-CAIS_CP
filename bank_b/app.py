@@ -93,7 +93,9 @@ def require_auth(request: Request):
 
 def require_admin(request: Request):
     user = get_current_user(request)
-    if not user or user["role"] != "admin":
+    if not user:
+        raise HTTPException(status_code=401, detail="Session expired — please log in again")
+    if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin role required")
     return user
 

@@ -261,6 +261,17 @@
   <div id="toast"></div>
 
   <script>
+    // ── Auth-aware fetch: auto-redirect to /login on 401 ─────────────────────
+    async function apiFetch(url, opts = {}) {
+      const resp = await fetch(url, opts);
+      if (resp.status === 401) {
+        showToast('Session expired — redirecting to login...');
+        setTimeout(() => window.location.href = '/login', 1200);
+        throw new Error('Session expired');
+      }
+      return resp;
+    }
+
     // ── Heatmap chart ──────────────────────────────────────────────────────────
     const heatmapRaw = {{ heatmap_data | safe }};
     const idTypes    = [...new Set(heatmapRaw.map(d => d.identifier_type))];
@@ -310,20 +321,22 @@
         reported_by:     document.getElementById('m-reported').value.trim(),
       };
       if (!payload.identifier) { alert('Identifier is required'); return; }
-      const resp = await fetch('/api/blacklist/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await resp.json();
-      const el = document.getElementById('manual-result');
-      if (resp.ok && data.inserted) {
-        el.innerHTML = '<span style="color:#34D399"><i class="fa-solid fa-check"></i> Entry added successfully.</span>';
-        showToast('Entry added to blacklist');
-        setTimeout(() => location.reload(), 1500);
-      } else {
-        el.innerHTML = `<span style="color:#F59E0B">${data.message || 'Error'}</span>`;
-      }
+      try {
+        const resp = await apiFetch('/api/blacklist/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        const el = document.getElementById('manual-result');
+        if (resp.ok && data.inserted) {
+          el.innerHTML = '<span style="color:#34D399"><i class="fa-solid fa-check"></i> Entry added successfully.</span>';
+          showToast('Entry added to blacklist');
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          el.innerHTML = `<span style="color:#F59E0B">${data.message || data.detail || 'Error'}</span>`;
+        }
+      } catch (e) { if (e.message !== 'Session expired') console.error(e); }
     }
 
     // ── CSV ────────────────────────────────────────────────────────────────────
@@ -338,14 +351,16 @@
       if (!selectedFile) return;
       const fd = new FormData();
       fd.append('file', selectedFile);
-      const resp = await fetch('/api/blacklist/upload-csv', { method:'POST', body:fd });
-      const data = await resp.json();
-      const el = document.getElementById('upload-result');
-      el.innerHTML = `<span style="color:#34D399">Inserted: ${data.inserted}</span> &nbsp;
-        <span style="color:#F59E0B">Skipped: ${data.skipped_duplicates}</span> &nbsp;
-        ${data.errors.length ? `<span style="color:#F87171">Errors: ${data.errors.length}</span>` : ''}`;
-      showToast(`CSV processed — ${data.inserted} inserted`);
-      setTimeout(() => location.reload(), 2000);
+      try {
+        const resp = await apiFetch('/api/blacklist/upload-csv', { method:'POST', body:fd });
+        const data = await resp.json();
+        const el = document.getElementById('upload-result');
+        el.innerHTML = `<span style="color:#34D399">Inserted: ${data.inserted}</span> &nbsp;
+          <span style="color:#F59E0B">Skipped: ${data.skipped_duplicates}</span> &nbsp;
+          ${data.errors.length ? `<span style="color:#F87171">Errors: ${data.errors.length}</span>` : ''}`;
+        showToast(`CSV processed — ${data.inserted} inserted`);
+        setTimeout(() => location.reload(), 2000);
+      } catch (e) { if (e.message !== 'Session expired') console.error(e); }
     }
 
     // Drag & drop
@@ -361,11 +376,13 @@
     // ── Delete ────────────────────────────────────────────────────────────────
     async function deleteEntry(id) {
       if (!confirm(`Delete blacklist entry #${id}?`)) return;
-      const resp = await fetch(`/api/blacklist/${id}`, { method:'DELETE' });
-      if (resp.ok) {
-        document.getElementById(`bl-row-${id}`)?.remove();
-        showToast('Entry deleted');
-      }
+      try {
+        const resp = await apiFetch(`/api/blacklist/${id}`, { method:'DELETE' });
+        if (resp.ok) {
+          document.getElementById(`bl-row-${id}`)?.remove();
+          showToast('Entry deleted');
+        }
+      } catch (e) { if (e.message !== 'Session expired') console.error(e); }
     }
 
     function showToast(msg) {
