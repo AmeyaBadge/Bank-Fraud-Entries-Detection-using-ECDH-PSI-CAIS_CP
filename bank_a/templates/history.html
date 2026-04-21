@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Bank A — PSI Run History</title>
+  <meta name="description" content="Paginated history of all PSI batch runs performed by Bank A."/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    :root{--navy:#0A1628;--blue:#1A3A6B;--accent:#2563EB;--glass:rgba(255,255,255,0.05);--border:rgba(255,255,255,0.1);}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,var(--navy) 0%,#0F2040 60%,var(--navy) 100%);min-height:100vh;color:#E2E8F0}
+    .sidebar{width:240px;min-height:100vh;background:rgba(10,22,40,0.95);border-right:1px solid var(--border);position:fixed;top:0;left:0;padding:1.5rem 0;display:flex;flex-direction:column;z-index:50}
+    .sidebar-logo{display:flex;align-items:center;gap:0.75rem;padding:0 1.5rem 1.5rem}
+    .sidebar-logo .icon{width:40px;height:40px;background:linear-gradient(135deg,#2563EB,#0EA5E9);border-radius:10px;display:flex;align-items:center;justify-content:center}
+    .sidebar-logo .name{font-weight:700;font-size:1rem}.sidebar-logo .sub{font-size:0.7rem;color:#64748B}
+    nav a{display:flex;align-items:center;gap:0.75rem;padding:0.7rem 1.5rem;color:#94A3B8;text-decoration:none;font-size:0.875rem;transition:all 0.2s;border-left:3px solid transparent}
+    nav a:hover,nav a.active{color:#E2E8F0;background:rgba(37,99,235,0.12);border-left-color:#2563EB}
+    nav a i{width:16px;text-align:center}
+    .sidebar-footer{margin-top:auto;padding:1rem 1.5rem;border-top:1px solid var(--border)}
+    .user-badge{display:flex;align-items:center;gap:0.75rem}
+    .user-avatar{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#7C3AED,#4F46E5);display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600}
+    .user-name{font-size:0.82rem;font-weight:500}.user-role{font-size:0.7rem;color:#64748B}
+    .logout-btn{margin-left:auto;background:none;border:none;color:#64748B;cursor:pointer;font-size:0.85rem;transition:color 0.2s}
+    .logout-btn:hover{color:#DC2626}
+    .main{margin-left:240px;padding:2rem}
+    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem}
+    .topbar h1{font-size:1.4rem;font-weight:700}.topbar p{color:#64748B;font-size:0.82rem}
+    .card{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:1.5rem;backdrop-filter:blur(8px)}
+    .card-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#64748B;margin-bottom:1.25rem}
+    table{width:100%;border-collapse:collapse;font-size:0.83rem}
+    thead th{text-align:left;padding:0.65rem 1rem;color:#64748B;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;border-bottom:1px solid var(--border)}
+    tbody tr{border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s}
+    tbody tr:hover{background:rgba(255,255,255,0.04)}
+    td{padding:0.65rem 1rem}
+    .mono{font-family:'Courier New',monospace;font-size:0.78rem;color:#64748B}
+    .badge-status{display:inline-flex;align-items:center;gap:0.35rem;padding:0.2rem 0.6rem;border-radius:999px;font-size:0.7rem;font-weight:600}
+    .badge-status.completed{background:rgba(16,185,129,0.15);color:#34D399}
+    .badge-status.running{background:rgba(37,99,235,0.15);color:#60A5FA}
+    .badge-status.failed{background:rgba(220,38,38,0.15);color:#FCA5A5}
+    .badge-status.pending{background:rgba(148,163,184,0.15);color:#94A3B8}
+    /* Expandable matches */
+    .match-row{display:none;background:rgba(0,0,0,0.2)}
+    .match-row.open{display:table-row}
+    .match-inner{padding:1rem 2rem;border-top:1px solid var(--border)}
+    .sev{display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.68rem;font-weight:700}
+    .sev-CRITICAL{background:rgba(220,38,38,0.2);color:#FCA5A5}.sev-HIGH{background:rgba(249,115,22,0.2);color:#FED7AA}
+    .sev-MEDIUM{background:rgba(245,158,11,0.2);color:#FDE68A}.sev-LOW{background:rgba(16,185,129,0.2);color:#A7F3D0}
+    .sev-UNKNOWN{background:rgba(148,163,184,0.2);color:#CBD5E1}
+    /* Pagination */
+    .pagination{display:flex;gap:0.5rem;margin-top:1.5rem;justify-content:center}
+    .page-btn{padding:0.4rem 0.9rem;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:#94A3B8;cursor:pointer;font-size:0.82rem;text-decoration:none;transition:all 0.2s}
+    .page-btn:hover,.page-btn.active{background:rgba(37,99,235,0.2);border-color:#2563EB;color:#60A5FA}
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon"><i class="fa-solid fa-landmark" style="color:#fff"></i></div>
+      <div><div class="name">Bank A</div><div class="sub">Querier Node · Port 5001</div></div>
+    </div>
+    <nav>
+      <a href="/"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+      <a href="/history" class="active"><i class="fa-solid fa-clock-rotate-left"></i> PSI History</a>
+      <a href="/lookup"><i class="fa-solid fa-magnifying-glass"></i> Account Lookup</a>
+      <a href="http://127.0.0.1:5001/docs" target="_blank"><i class="fa-solid fa-book"></i> API Docs</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-badge">
+        <div class="user-avatar">{{ user.username[0].upper() }}</div>
+        <div><div class="user-name">{{ user.username }}</div><div class="user-role">{{ user.role }}</div></div>
+        <form method="POST" action="/ui/logout" style="margin:0">
+          <button type="submit" class="logout-btn"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div><h1>PSI Run History</h1><p>All batch fraud detection runs — click a row to expand matches</p></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> {{ total }} total runs</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Run ID</th><th>Started</th><th>Partner</th><th>Accounts Checked</th>
+            <th>Matches Found</th><th>Duration</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in runs %}
+          <tr onclick="toggleMatches('{{ run.run_id }}')" id="row-{{ loop.index }}">
+            <td class="mono">{{ run.run_id[:8] }}…</td>
+            <td class="mono">{{ (run.started_at or "")[:16] }}</td>
+            <td>{{ run.partner_bank }}</td>
+            <td>{{ run.items_checked or "–" }}</td>
+            <td>{{ run.matches_found if run.matches_found is not none else "–" }}</td>
+            <td>
+              {% if run.started_at and run.completed_at %}
+                {% set dur = ((run.completed_at[:19])|string) %}
+                –
+              {% else %}–{% endif %}
+            </td>
+            <td><span class="badge-status {{ run.status }}">{{ run.status | upper }}</span></td>
+          </tr>
+          <tr class="match-row" id="matches-{{ run.run_id }}">
+            <td colspan="7">
+              <div class="match-inner" id="match-content-{{ run.run_id }}">
+                <span style="color:#64748B;font-size:0.82rem"><i class="fa-solid fa-spinner fa-spin"></i> Loading matches…</span>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" style="text-align:center;color:#475569;padding:2rem">No PSI runs yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      <div class="pagination">
+        {% if page > 1 %}
+        <a href="?page={{ page - 1 }}" class="page-btn"><i class="fa-solid fa-chevron-left"></i></a>
+        {% endif %}
+        {% set total_pages = ((total / per_page) | int) + (1 if total % per_page else 0) %}
+        {% for p in range(1, total_pages + 1) %}
+        <a href="?page={{ p }}" class="page-btn {{ 'active' if p == page }}">{{ p }}</a>
+        {% endfor %}
+        {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}" class="page-btn"><i class="fa-solid fa-chevron-right"></i></a>
+        {% endif %}
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const openRuns = new Set();
+
+    async function toggleMatches(runId) {
+      const row = document.getElementById(`matches-${runId}`);
+      if (openRuns.has(runId)) {
+        row.classList.remove('open');
+        openRuns.delete(runId);
+        return;
+      }
+      row.classList.add('open');
+      openRuns.add(runId);
+      const content = document.getElementById(`match-content-${runId}`);
+      const resp = await fetch(`/api/psi/run/${runId}/matches`);
+      if (!resp.ok) { content.textContent = 'Failed to load'; return; }
+      const data = await resp.json();
+      if (!data.matches.length) {
+        content.innerHTML = '<span style="color:#64748B">No matches for this run.</span>';
+        return;
+      }
+      const sevClass = s => ({CRITICAL:'sev-CRITICAL',HIGH:'sev-HIGH',MEDIUM:'sev-MEDIUM',LOW:'sev-LOW'}[s]||'sev-UNKNOWN');
+      content.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+          <thead><tr>
+            <th style="text-align:left;padding:0.4rem 0.6rem;color:#64748B;font-size:0.68rem">Identifier</th>
+            <th style="text-align:left;padding:0.4rem 0.6rem;color:#64748B;font-size:0.68rem">Type</th>
+            <th style="text-align:left;padding:0.4rem 0.6rem;color:#64748B;font-size:0.68rem">Severity</th>
+            <th style="text-align:left;padding:0.4rem 0.6rem;color:#64748B;font-size:0.68rem">Reason</th>
+          </tr></thead>
+          <tbody>
+            ${data.matches.map(m => `
+              <tr>
+                <td style="padding:0.4rem 0.6rem;font-family:monospace;font-size:0.75rem;color:#94A3B8">****${(m.raw_identifier||'').slice(-4)}</td>
+                <td style="padding:0.4rem 0.6rem;font-size:0.75rem;text-transform:uppercase;color:#94A3B8">${m.identifier_type}</td>
+                <td style="padding:0.4rem 0.6rem"><span class="sev ${sevClass(m.severity)}">${m.severity||'?'}</span></td>
+                <td style="padding:0.4rem 0.6rem;font-size:0.78rem">${m.reason||'–'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    }
+  </script>
+</body>
+</html>

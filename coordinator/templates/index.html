@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PSI Coordinator — Network Topology</title>
+  <meta name="description" content="PSI Platform Coordinator: monitor node health and PSI session activity across the network." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    :root {
+      --navy:   #0A1628;
+      --blue:   #1A3A6B;
+      --accent: #2563EB;
+      --green:  #10B981;
+      --red:    #DC2626;
+      --yellow: #F59E0B;
+      --gray:   #94A3B8;
+      --glass:  rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.1);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, var(--navy) 0%, #0F2040 50%, #0A1628 100%);
+      min-height: 100vh;
+      color: #E2E8F0;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      background: rgba(10,22,40,0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), #7C3AED);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+    }
+    header h1 { font-size: 1.25rem; font-weight: 700; }
+    header .badge {
+      margin-left: auto;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      color: var(--gray);
+    }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    main { max-width: 1280px; margin: 0 auto; padding: 2rem; }
+
+    /* ── Cards ──────────────────────────────────────────── */
+    .card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(8px);
+      padding: 1.5rem;
+    }
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--gray);
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* ── Node Grid ───────────────────────────────────────── */
+    .node-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .node-card {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .node-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .node-icon {
+      width: 46px; height: 46px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .node-icon.coordinator { background: linear-gradient(135deg,#7C3AED,#4F46E5); }
+    .node-icon.bank_a      { background: linear-gradient(135deg,#2563EB,#0EA5E9); }
+    .node-icon.bank_b      { background: linear-gradient(135deg,#10B981,#059669); }
+    .node-info { flex: 1; min-width: 0; }
+    .node-name { font-weight: 600; font-size: 0.95rem; }
+    .node-url  { font-size: 0.75rem; color: var(--gray); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0.2rem 0; }
+    .node-meta { font-size: 0.72rem; color: var(--gray); }
+    .status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .status-dot.online   { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+    .status-dot.offline  { background: var(--red); }
+    .status-dot.degraded { background: var(--yellow); }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.4; }
+    }
+
+    /* ── Session Table ───────────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    thead th {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      color: var(--gray);
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.15s;
+    }
+    tbody tr:hover { background: rgba(255,255,255,0.04); }
+    tbody td { padding: 0.75rem 1rem; }
+    .mono { font-family: 'Courier New', monospace; font-size: 0.78rem; color: var(--gray); }
+
+    /* Status badges */
+    .badge-status {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge-status.completed { background: rgba(16,185,129,0.15); color: var(--green); }
+    .badge-status.running   { background: rgba(37,99,235,0.15);  color: #60A5FA; }
+    .badge-status.failed    { background: rgba(220,38,38,0.15);  color: var(--red); }
+    .badge-status.pending   { background: rgba(148,163,184,0.15); color: var(--gray); }
+
+    /* ── Auto-refresh indicator ──────────────────────────── */
+    .refresh-indicator {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.75rem; color: var(--gray);
+      margin-bottom: 1rem;
+    }
+    .refresh-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1.5s infinite;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo"><i class="fa-solid fa-network-wired"></i></div>
+    <div>
+      <h1>PSI Coordinator</h1>
+      <div style="font-size:0.75rem;color:var(--gray)">Network Topology &amp; Session Monitor</div>
+    </div>
+    <div class="badge"><i class="fa-solid fa-circle" style="color:var(--green);font-size:0.5rem"></i>&nbsp; Coordinator Online</div>
+  </header>
+
+  <main>
+    <!-- Node Status Cards -->
+    <div class="section-title"><i class="fa-solid fa-server"></i> Registered Nodes</div>
+    <div class="node-grid" id="nodeGrid">
+      {% for node in nodes %}
+      <div class="node-card">
+        <div class="node-icon {{ node.node_name }}">
+          {% if node.node_name == 'bank_a' %}<i class="fa-solid fa-landmark"></i>
+          {% elif node.node_name == 'bank_b' %}<i class="fa-solid fa-shield-halved"></i>
+          {% else %}<i class="fa-solid fa-network-wired"></i>{% endif %}
+        </div>
+        <div class="node-info">
+          <div class="node-name">{{ node.node_name | upper }}</div>
+          <div class="node-url">{{ node.node_url }}</div>
+          <div class="node-meta">
+            Last seen: {{ node.last_seen or "Never" }}
+          </div>
+        </div>
+        <div class="status-dot {{ node.status }}"></div>
+      </div>
+      {% else %}
+      <div class="card" style="grid-column:1/-1;text-align:center;color:var(--gray)">
+        <i class="fa-solid fa-circle-info"></i>&nbsp; No nodes registered yet. Bank nodes register on startup.
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Session Feed -->
+    <div class="card">
+      <div class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Recent PSI Sessions</div>
+      <div class="refresh-indicator"><div class="refresh-dot"></div> Auto-refreshing every 5 seconds</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Session ID</th>
+              <th>Querier</th>
+              <th>Responder</th>
+              <th>Status</th>
+              <th>Items</th>
+              <th>Matches</th>
+              <th>Created</th>
+              <th>Completed</th>
+            </tr>
+          </thead>
+          <tbody id="sessionBody">
+            {% for s in sessions %}
+            <tr>
+              <td class="mono">{{ s.session_id[:8] }}…</td>
+              <td>{{ s.querier_node }}</td>
+              <td>{{ s.responder_node }}</td>
+              <td>
+                <span class="badge-status {{ s.status }}">
+                  {% if s.status == 'running' %}<i class="fa-solid fa-spinner fa-spin"></i>{% endif %}
+                  {{ s.status | upper }}
+                </span>
+              </td>
+              <td>{{ s.items_in_query or "–" }}</td>
+              <td>{{ s.matches_found if s.matches_found is not none else "–" }}</td>
+              <td class="mono">{{ (s.created_at or "")[:16] }}</td>
+              <td class="mono">{{ (s.completed_at or "")[:16] or "–" }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="8" style="text-align:center;color:var(--gray);padding:2rem">
+                No PSI sessions recorded yet.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Auto-refresh the page every 5 seconds
+    setTimeout(() => location.reload(), 5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Bank A — Fraud Detection Dashboard</title>
+  <meta name="description" content="Bank A PSI Platform: run fraud detection checks and view match results."/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    :root{--navy:#0A1628;--blue:#1A3A6B;--accent:#2563EB;--red:#DC2626;--green:#10B981;--yellow:#F59E0B;--orange:#F97316;--glass:rgba(255,255,255,0.05);--border:rgba(255,255,255,0.1);}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,var(--navy) 0%,#0F2040 60%,#0A1628 100%);min-height:100vh;color:#E2E8F0}
+    /* Sidebar */
+    .sidebar{width:240px;min-height:100vh;background:rgba(10,22,40,0.95);border-right:1px solid var(--border);position:fixed;top:0;left:0;padding:1.5rem 0;display:flex;flex-direction:column;z-index:50}
+    .sidebar-logo{display:flex;align-items:center;gap:0.75rem;padding:0 1.5rem 1.5rem}
+    .sidebar-logo .icon{width:40px;height:40px;background:linear-gradient(135deg,#2563EB,#0EA5E9);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+    .sidebar-logo .name{font-weight:700;font-size:1rem}
+    .sidebar-logo .sub{font-size:0.7rem;color:#64748B}
+    nav a{display:flex;align-items:center;gap:0.75rem;padding:0.7rem 1.5rem;color:#94A3B8;text-decoration:none;font-size:0.875rem;transition:all 0.2s;border-left:3px solid transparent}
+    nav a:hover,nav a.active{color:#E2E8F0;background:rgba(37,99,235,0.12);border-left-color:#2563EB}
+    nav a i{width:16px;text-align:center}
+    .sidebar-footer{margin-top:auto;padding:1rem 1.5rem;border-top:1px solid var(--border)}
+    .user-badge{display:flex;align-items:center;gap:0.75rem}
+    .user-avatar{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#7C3AED,#4F46E5);display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600}
+    .user-name{font-size:0.82rem;font-weight:500}
+    .user-role{font-size:0.7rem;color:#64748B}
+    .logout-btn{margin-left:auto;background:none;border:none;color:#64748B;cursor:pointer;font-size:0.85rem;transition:color 0.2s}
+    .logout-btn:hover{color:var(--red)}
+    /* Main */
+    .main{margin-left:240px;padding:2rem}
+    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem}
+    .topbar h1{font-size:1.4rem;font-weight:700}
+    .topbar p{color:#64748B;font-size:0.82rem}
+    /* KPI Cards */
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
+    .kpi-card{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:1.25rem 1.5rem;backdrop-filter:blur(8px);transition:transform 0.2s,border-color 0.2s}
+    .kpi-card:hover{transform:translateY(-2px);border-color:var(--accent)}
+    .kpi-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#64748B;margin-bottom:0.5rem}
+    .kpi-value{font-size:2rem;font-weight:800;line-height:1}
+    .kpi-icon{float:right;font-size:1.5rem;opacity:0.3}
+    /* Row layout */
+    .row{display:grid;gap:1.5rem;margin-bottom:1.5rem}
+    .row-2{grid-template-columns:1fr 1fr}
+    .row-3{grid-template-columns:2fr 1fr}
+    /* Card */
+    .card{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:1.5rem;backdrop-filter:blur(8px)}
+    .card-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#64748B;margin-bottom:1.25rem;display:flex;align-items:center;gap:0.5rem}
+    /* PSI Run Button & Progress */
+    .run-section{background:linear-gradient(135deg,rgba(37,99,235,0.15),rgba(124,58,237,0.1));border:1px solid rgba(37,99,235,0.3);border-radius:16px;padding:1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:1.5rem}
+    .btn-run{padding:0.8rem 2rem;background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;border:none;border-radius:10px;font-size:0.95rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:transform 0.15s,box-shadow 0.15s;white-space:nowrap}
+    .btn-run:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 24px rgba(37,99,235,0.4)}
+    .btn-run:disabled{opacity:0.5;cursor:not-allowed}
+    .progress-section{flex:1}
+    .progress-label{font-size:0.8rem;color:#94A3B8;margin-bottom:0.5rem;display:flex;justify-content:space-between}
+    .progress-bar-outer{height:8px;background:rgba(255,255,255,0.1);border-radius:999px;overflow:hidden}
+    .progress-bar-inner{height:100%;background:linear-gradient(90deg,#2563EB,#7C3AED);border-radius:999px;transition:width 0.5s ease;width:0%}
+    /* Table */
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:0.83rem}
+    thead th{text-align:left;padding:0.65rem 1rem;color:#64748B;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;border-bottom:1px solid var(--border)}
+    tbody tr{border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s}
+    tbody tr:hover{background:rgba(255,255,255,0.04)}
+    tbody td{padding:0.65rem 1rem}
+    .mono{font-family:'Courier New',monospace;font-size:0.78rem;color:#64748B}
+    /* Severity badges */
+    .sev{display:inline-block;padding:0.2rem 0.55rem;border-radius:999px;font-size:0.7rem;font-weight:700;letter-spacing:0.04em}
+    .sev-CRITICAL{background:rgba(220,38,38,0.2);color:#FCA5A5}
+    .sev-HIGH{background:rgba(249,115,22,0.2);color:#FED7AA}
+    .sev-MEDIUM{background:rgba(245,158,11,0.2);color:#FDE68A}
+    .sev-LOW{background:rgba(16,185,129,0.2);color:#A7F3D0}
+    .sev-UNKNOWN{background:rgba(148,163,184,0.2);color:#CBD5E1}
+    /* Chart canvas */
+    canvas{max-height:220px}
+    /* Flash */
+    #toast{position:fixed;top:1.5rem;right:1.5rem;background:rgba(16,185,129,0.9);color:#fff;padding:0.75rem 1.25rem;border-radius:10px;font-size:0.85rem;font-weight:500;display:none;z-index:999;backdrop-filter:blur(8px)}
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon"><i class="fa-solid fa-landmark" style="color:#fff"></i></div>
+      <div><div class="name">Bank A</div><div class="sub">Querier Node · Port 5001</div></div>
+    </div>
+    <nav>
+      <a href="/" class="active" id="nav-dashboard"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+      <a href="/history" id="nav-history"><i class="fa-solid fa-clock-rotate-left"></i> PSI History</a>
+      <a href="/lookup" id="nav-lookup"><i class="fa-solid fa-magnifying-glass"></i> Account Lookup</a>
+      <a href="http://127.0.0.1:5001/docs" target="_blank"><i class="fa-solid fa-book"></i> API Docs</a>
+      <a href="http://127.0.0.1:5000" target="_blank"><i class="fa-solid fa-network-wired"></i> Coordinator</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-badge">
+        <div class="user-avatar">{{ user.username[0].upper() }}</div>
+        <div><div class="user-name">{{ user.username }}</div><div class="user-role">{{ user.role }}</div></div>
+        <form method="POST" action="/ui/logout" style="margin:0">
+          <button type="submit" class="logout-btn" title="Logout"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Fraud Detection Dashboard</h1>
+        <p>ECDH-PSI over NIST P-256 · Celery async tasks · Zero plaintext transfer</p>
+      </div>
+      <div style="font-size:0.75rem;color:#475569">{{ (""|default(none)) }}</div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label"><i class="fa-solid fa-users"></i> Monitored Accounts</div>
+        <div class="kpi-value" style="color:#60A5FA">{{ account_count | default(0) }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><i class="fa-solid fa-rotate"></i> PSI Runs Completed</div>
+        <div class="kpi-value" style="color:#34D399">{{ run_count | default(0) }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><i class="fa-solid fa-triangle-exclamation"></i> Total Matches Found</div>
+        <div class="kpi-value" style="color:#F87171">{{ total_matches | default(0) }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><i class="fa-solid fa-clock"></i> Last PSI Run</div>
+        <div style="font-size:0.85rem;margin-top:0.35rem;color:#94A3B8">{{ (last_run or "Never")[:16] }}</div>
+      </div>
+    </div>
+
+    <!-- PSI Run Control -->
+    <div class="run-section">
+      <button class="btn-run" id="btnRunPsi" onclick="runPSI()">
+        <i class="fa-solid fa-play"></i>&nbsp; Run PSI Check
+      </button>
+      <div class="progress-section" id="progressSection" style="display:none">
+        <div class="progress-label">
+          <span id="progressMsg">Initializing...</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <div class="progress-bar-outer">
+          <div class="progress-bar-inner" id="progressBar"></div>
+        </div>
+      </div>
+      <div id="runResult" style="font-size:0.85rem;color:#94A3B8"></div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row row-2" style="margin-bottom:1.5rem">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-chart-bar"></i> Match Trend (Last 10 Runs)</div>
+        <canvas id="barChart"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-chart-pie"></i> Severity Distribution</div>
+        <canvas id="donutChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Latest Matches Table -->
+    <div class="card">
+      <div class="card-title">
+        <i class="fa-solid fa-list-check"></i> Latest PSI Match Results
+        {% if latest_run_id %}
+        <span style="margin-left:auto;font-size:0.7rem;color:#475569" class="mono">{{ latest_run_id[:8] }}…</span>
+        {% endif %}
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Identifier (masked)</th>
+              <th>Type</th>
+              <th>Severity</th>
+              <th>Reason</th>
+              <th>Detected At</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in latest_matches %}
+            <tr>
+              <td class="mono">
+                {% set raw = m.raw_identifier %}
+                {% if raw|length > 4 %}
+                  ****{{ raw[-4:] }}
+                {% else %}
+                  ****
+                {% endif %}
+              </td>
+              <td><span style="font-size:0.75rem;text-transform:uppercase;color:#94A3B8">{{ m.identifier_type }}</span></td>
+              <td><span class="sev sev-{{ m.severity }}">{{ m.severity }}</span></td>
+              <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.reason or "–" }}</td>
+              <td class="mono">{{ (m.found_at or "")[:16] }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" style="text-align:center;color:#475569;padding:2rem">No matches yet. Run a PSI check to start.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    // ── Chart Data ──────────────────────────────────────────────────────────────
+    const severityData = {{ severity_dist | safe }};
+    const runChartData = {{ run_chart_data | safe }};
+
+    // Donut chart
+    const donutCtx = document.getElementById('donutChart').getContext('2d');
+    new Chart(donutCtx, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(severityData).length ? Object.keys(severityData) : ['No data'],
+        datasets: [{
+          data: Object.values(severityData).length ? Object.values(severityData) : [1],
+          backgroundColor: ['#EF4444','#F97316','#F59E0B','#10B981','#94A3B8'],
+          borderWidth: 0, hoverOffset: 6,
+        }]
+      },
+      options: {
+        plugins: { legend: { position:'bottom', labels:{ color:'#94A3B8', font:{size:11} } } },
+        cutout: '65%',
+      }
+    });
+
+    // Bar chart
+    const barCtx = document.getElementById('barChart').getContext('2d');
+    new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: runChartData.map(r => r.started_at ? r.started_at.substring(0,10) : ''),
+        datasets: [{
+          label: 'Matches Found',
+          data: runChartData.map(r => r.matches_found || 0),
+          backgroundColor: 'rgba(37,99,235,0.5)',
+          borderColor: '#2563EB',
+          borderWidth: 1,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        plugins: { legend:{ display:false } },
+        scales: {
+          x: { grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#64748B',font:{size:10}} },
+          y: { grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#64748B',font:{size:10}} }
+        }
+      }
+    });
+
+    // ── PSI Run ────────────────────────────────────────────────────────────────
+    let pollingInterval = null;
+
+    async function runPSI() {
+      const btn = document.getElementById('btnRunPsi');
+      btn.disabled = true;
+      document.getElementById('progressSection').style.display = 'block';
+      document.getElementById('runResult').textContent = '';
+      setProgress(0, 'Starting PSI task...');
+
+      const resp = await fetch('/api/psi/run-batch', { method:'POST', headers:{'Content-Type':'application/json'} });
+      if (!resp.ok) {
+        showToast('Failed to start PSI task', 'error');
+        btn.disabled = false;
+        return;
+      }
+      const data = await resp.json();
+      pollingInterval = setInterval(() => pollStatus(data.task_id, btn), 2000);
+    }
+
+    async function pollStatus(taskId, btn) {
+      const resp = await fetch(`/api/task-status/${taskId}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      setProgress(data.progress || 0, data.message || data.state);
+      if (data.state === 'SUCCESS') {
+        clearInterval(pollingInterval);
+        const r = data.result || {};
+        document.getElementById('runResult').innerHTML =
+          `<span style="color:#34D399"><i class="fa-solid fa-check-circle"></i> ${r.matches_found ?? 0} matches in ${r.items_checked ?? 0} accounts (${r.duration_seconds ?? 0}s)</span>`;
+        btn.disabled = false;
+        showToast(`PSI complete — ${r.matches_found ?? 0} fraud matches found`);
+        setTimeout(() => location.reload(), 2500);
+      } else if (data.state === 'FAILURE') {
+        clearInterval(pollingInterval);
+        document.getElementById('runResult').innerHTML = `<span style="color:#F87171">Task failed: ${data.message}</span>`;
+        btn.disabled = false;
+      }
+    }
+
+    function setProgress(pct, msg) {
+      document.getElementById('progressBar').style.width = pct + '%';
+      document.getElementById('progressPct').textContent = pct + '%';
+      document.getElementById('progressMsg').textContent = msg;
+    }
+
+    function showToast(msg, type) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      t.style.background = type === 'error' ? 'rgba(220,38,38,0.9)' : 'rgba(16,185,129,0.9)';
+      setTimeout(() => t.style.display = 'none', 4000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Bank B — Fraud Authority Dashboard</title>
+  <meta name="description" content="Bank B PSI Platform: manage fraud blacklist entries and monitor PSI query activity."/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    :root{--navy:#0A1628;--green:#10B981;--accent:#059669;--red:#DC2626;--glass:rgba(255,255,255,0.05);--border:rgba(255,255,255,0.1);}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,var(--navy) 0%,#04201A 60%,var(--navy) 100%);min-height:100vh;color:#E2E8F0}
+    .sidebar{width:240px;min-height:100vh;background:rgba(10,22,40,0.95);border-right:1px solid var(--border);position:fixed;top:0;left:0;padding:1.5rem 0;display:flex;flex-direction:column;z-index:50}
+    .sidebar-logo{display:flex;align-items:center;gap:0.75rem;padding:0 1.5rem 1.5rem}
+    .sidebar-logo .icon{width:40px;height:40px;background:linear-gradient(135deg,#10B981,#059669);border-radius:10px;display:flex;align-items:center;justify-content:center}
+    .sidebar-logo .name{font-weight:700;font-size:1rem}.sidebar-logo .sub{font-size:0.7rem;color:#64748B}
+    nav a{display:flex;align-items:center;gap:0.75rem;padding:0.7rem 1.5rem;color:#94A3B8;text-decoration:none;font-size:0.875rem;transition:all 0.2s;border-left:3px solid transparent}
+    nav a:hover,nav a.active{color:#E2E8F0;background:rgba(16,185,129,0.1);border-left-color:#10B981}
+    nav a i{width:16px;text-align:center}
+    .sidebar-footer{margin-top:auto;padding:1rem 1.5rem;border-top:1px solid var(--border)}
+    .user-badge{display:flex;align-items:center;gap:0.75rem}
+    .user-avatar{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#10B981,#059669);display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600}
+    .user-name{font-size:0.82rem;font-weight:500}.user-role{font-size:0.7rem;color:#64748B}
+    .logout-btn{margin-left:auto;background:none;border:none;color:#64748B;cursor:pointer;font-size:0.85rem;transition:color 0.2s}
+    .logout-btn:hover{color:#DC2626}
+    .main{margin-left:240px;padding:2rem}
+    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem}
+    .topbar h1{font-size:1.4rem;font-weight:700}.topbar p{color:#64748B;font-size:0.82rem}
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
+    .kpi-card{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:1.25rem 1.5rem;backdrop-filter:blur(8px);transition:transform 0.2s,border-color 0.2s}
+    .kpi-card:hover{transform:translateY(-2px);border-color:var(--green)}
+    .kpi-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#64748B;margin-bottom:0.5rem}
+    .kpi-value{font-size:2rem;font-weight:800;line-height:1}
+    .row{display:grid;gap:1.5rem;margin-bottom:1.5rem}
+    .row-2{grid-template-columns:1fr 1fr}
+    .row-3{grid-template-columns:1fr 2fr}
+    .card{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:1.5rem;backdrop-filter:blur(8px)}
+    .card-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#64748B;margin-bottom:1.25rem;display:flex;align-items:center;gap:0.5rem}
+    /* Tabs */
+    .tabs{display:flex;gap:0.5rem;margin-bottom:1.5rem}
+    .tab-btn{padding:0.5rem 1.1rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:#94A3B8;font-size:0.82rem;cursor:pointer;font-family:'Inter',sans-serif;transition:all 0.2s}
+    .tab-btn.active{background:rgba(16,185,129,0.15);border-color:#10B981;color:#34D399}
+    .tab-pane{display:none}.tab-pane.active{display:block}
+    /* Forms */
+    label{display:block;font-size:0.78rem;font-weight:500;color:#94A3B8;margin-bottom:0.35rem}
+    .form-group{margin-bottom:1rem}
+    input[type=text],select,textarea{width:100%;padding:0.7rem 1rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#E2E8F0;font-family:'Inter',sans-serif;font-size:0.85rem;outline:none;transition:border-color 0.2s}
+    input:focus,select:focus,textarea:focus{border-color:#10B981;box-shadow:0 0 0 3px rgba(16,185,129,0.15)}
+    select option{background:#0A1628}textarea{resize:vertical;min-height:80px}
+    .btn{padding:0.7rem 1.5rem;border-radius:10px;border:none;font-family:'Inter',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.2s}
+    .btn-green{background:linear-gradient(135deg,#10B981,#059669);color:#fff}
+    .btn-green:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(16,185,129,0.35)}
+    .btn-red{background:rgba(220,38,38,0.15);color:#FCA5A5;border:1px solid rgba(220,38,38,0.3)}
+    .btn-red:hover{background:rgba(220,38,38,0.25)}
+    /* Drag-drop zone */
+    .drop-zone{border:2px dashed rgba(255,255,255,0.15);border-radius:12px;padding:2.5rem;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:1rem}
+    .drop-zone:hover,.drop-zone.dragover{border-color:#10B981;background:rgba(16,185,129,0.05)}
+    .drop-zone i{font-size:2rem;color:#475569;margin-bottom:0.75rem;display:block}
+    .drop-zone p{font-size:0.82rem;color:#64748B}
+    /* Table */
+    .table-wrap{overflow-x:auto;max-height:350px;overflow-y:auto}
+    table{width:100%;border-collapse:collapse;font-size:0.82rem}
+    thead th{text-align:left;padding:0.65rem 0.85rem;color:#64748B;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(10,22,40,0.9)}
+    tbody tr{border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s}
+    tbody tr:hover{background:rgba(255,255,255,0.04)}
+    td{padding:0.6rem 0.85rem}
+    .mono{font-family:'Courier New',monospace;font-size:0.75rem;color:#64748B}
+    .sev{display:inline-block;padding:0.18rem 0.5rem;border-radius:999px;font-size:0.68rem;font-weight:700}
+    .sev-CRITICAL{background:rgba(220,38,38,0.2);color:#FCA5A5}
+    .sev-HIGH{background:rgba(249,115,22,0.2);color:#FED7AA}
+    .sev-MEDIUM{background:rgba(245,158,11,0.2);color:#FDE68A}
+    .sev-LOW{background:rgba(16,185,129,0.2);color:#A7F3D0}
+    canvas{max-height:220px}
+    #toast{position:fixed;top:1.5rem;right:1.5rem;padding:0.75rem 1.25rem;border-radius:10px;font-size:0.85rem;font-weight:500;display:none;z-index:999;backdrop-filter:blur(8px);color:#fff}
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon"><i class="fa-solid fa-shield-halved" style="color:#fff"></i></div>
+      <div><div class="name">Bank B</div><div class="sub">Responder Node · Port 5002</div></div>
+    </div>
+    <nav>
+      <a href="/" class="active"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+      <a href="http://127.0.0.1:5002/docs" target="_blank"><i class="fa-solid fa-book"></i> API Docs</a>
+      <a href="http://127.0.0.1:5000" target="_blank"><i class="fa-solid fa-network-wired"></i> Coordinator</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-badge">
+        <div class="user-avatar">{{ user.username[0].upper() }}</div>
+        <div><div class="user-name">{{ user.username }}</div><div class="user-role">{{ user.role }}</div></div>
+        <form method="POST" action="/ui/logout" style="margin:0">
+          <button type="submit" class="logout-btn"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Fraud Authority Dashboard</h1>
+        <p>Bank B — Blacklist management, PSI response node, zero-knowledge responder</p>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label"><i class="fa-solid fa-ban"></i> Total Blacklist Entries</div>
+        <div class="kpi-value" style="color:#34D399">{{ bl_count }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><i class="fa-solid fa-bolt"></i> Queries (Last 30 Days)</div>
+        <div class="kpi-value" style="color:#60A5FA">{{ query_count }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><i class="fa-solid fa-skull"></i> CRITICAL Entries</div>
+        <div class="kpi-value" style="color:#F87171">{{ critical_count }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><i class="fa-solid fa-clock"></i> Last Updated</div>
+        <div style="font-size:0.85rem;margin-top:0.35rem;color:#94A3B8">{{ (last_updated or "Never")[:16] }}</div>
+      </div>
+    </div>
+
+    <!-- Chart + Management Row -->
+    <div class="row row-2" style="margin-bottom:1.5rem">
+      <!-- Severity Heatmap -->
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-fire"></i> Severity Heatmap (Type × Severity)</div>
+        <canvas id="heatmapChart"></canvas>
+      </div>
+
+      <!-- Blacklist Management -->
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-plus-circle"></i> Blacklist Management</div>
+        <div class="tabs">
+          <button class="tab-btn active" id="tab-manual" onclick="switchTab('manual')">Manual Entry</button>
+          <button class="tab-btn" id="tab-csv" onclick="switchTab('csv')">CSV Upload</button>
+        </div>
+
+        <!-- Tab 1: Manual Entry -->
+        <div class="tab-pane active" id="pane-manual">
+          <div class="form-group">
+            <label for="m-identifier">Identifier Value</label>
+            <input type="text" id="m-identifier" placeholder="e.g. fraud@example.com"/>
+          </div>
+          <div class="form-group">
+            <label for="m-type">Type</label>
+            <select id="m-type">
+              <option value="email">Email</option>
+              <option value="phone">Phone</option>
+              <option value="account_number">Account Number</option>
+              <option value="aadhaar">Aadhaar</option>
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+            <div class="form-group">
+              <label for="m-severity">Severity</label>
+              <select id="m-severity">
+                <option value="CRITICAL">CRITICAL</option>
+                <option value="HIGH">HIGH</option>
+                <option value="MEDIUM" selected>MEDIUM</option>
+                <option value="LOW">LOW</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="m-reported">Reported By</label>
+              <input type="text" id="m-reported" placeholder="e.g. Compliance"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="m-reason">Reason</label>
+            <textarea id="m-reason" placeholder="e.g. MONEY_LAUNDERING — suspected layering"></textarea>
+          </div>
+          <button class="btn btn-green" onclick="addManualEntry()"><i class="fa-solid fa-plus"></i>&nbsp; Add to Blacklist</button>
+          <div id="manual-result" style="margin-top:0.75rem;font-size:0.82rem"></div>
+        </div>
+
+        <!-- Tab 2: CSV Upload -->
+        <div class="tab-pane" id="pane-csv">
+          <div class="drop-zone" id="dropZone" onclick="document.getElementById('csvFile').click()">
+            <i class="fa-solid fa-file-csv"></i>
+            <p>Click or drag &amp; drop a CSV file here</p>
+            <p style="font-size:0.72rem;margin-top:0.3rem;color:#475569">Required columns: <code>identifier, identifier_type</code></p>
+            <p style="font-size:0.72rem;color:#475569">Optional: <code>severity, reason, reported_by</code></p>
+          </div>
+          <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="previewCSV(this)"/>
+          <div id="csv-preview" style="margin-bottom:1rem;font-size:0.78rem;color:#94A3B8"></div>
+          <button class="btn btn-green" id="uploadBtn" onclick="uploadCSV()" style="display:none">
+            <i class="fa-solid fa-upload"></i>&nbsp; Upload &amp; Process
+          </button>
+          <div id="upload-result" style="margin-top:0.75rem;font-size:0.82rem"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blacklist Table -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="card-title"><i class="fa-solid fa-list"></i> Blacklist Entries ({{ total_entries }} total)</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Identifier (masked)</th><th>Type</th><th>Severity</th>
+              <th>Reason</th><th>Reported By</th><th>Created</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in entries %}
+            <tr id="bl-row-{{ e.id }}">
+              <td class="mono">{{ e.id }}</td>
+              <td class="mono">****{{ (e.raw_identifier or "")[-4:] }}</td>
+              <td style="font-size:0.75rem;text-transform:uppercase;color:#94A3B8">{{ e.identifier_type }}</td>
+              <td><span class="sev sev-{{ e.severity }}">{{ e.severity }}</span></td>
+              <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ e.reason or "–" }}</td>
+              <td style="font-size:0.75rem;color:#64748B">{{ e.reported_by or "–" }}</td>
+              <td class="mono">{{ (e.created_at or "")[:10] }}</td>
+              <td>
+                <button class="btn btn-red" style="padding:0.25rem 0.6rem;font-size:0.72rem" onclick="deleteEntry({{ e.id }})">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" style="text-align:center;color:#475569;padding:2rem">No blacklist entries yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Query History -->
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-arrow-right-to-bracket"></i> Incoming PSI Query Log</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Session ID</th><th>Querier Bank</th><th>Items in Query</th><th>Blacklist Size</th><th>Timestamp</th></tr>
+          </thead>
+          <tbody>
+            {% for q in query_history %}
+            <tr>
+              <td class="mono">{{ (q.session_id or "–")[:8] }}…</td>
+              <td>{{ q.querier_bank }}</td>
+              <td>{{ q.items_in_query }}</td>
+              <td>{{ q.blacklist_size }}</td>
+              <td class="mono">{{ (q.responded_at or "")[:16] }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center;color:#475569;padding:2rem">No queries received yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    // ── Heatmap chart ──────────────────────────────────────────────────────────
+    const heatmapRaw = {{ heatmap_data | safe }};
+    const idTypes    = [...new Set(heatmapRaw.map(d => d.identifier_type))];
+    const severities = ['CRITICAL','HIGH','MEDIUM','LOW'];
+    const colors     = { CRITICAL:'rgba(220,38,38,0.7)', HIGH:'rgba(249,115,22,0.7)', MEDIUM:'rgba(245,158,11,0.7)', LOW:'rgba(16,185,129,0.7)' };
+
+    const heatCtx = document.getElementById('heatmapChart').getContext('2d');
+    new Chart(heatCtx, {
+      type: 'bar',
+      data: {
+        labels: idTypes.length ? idTypes : ['No data'],
+        datasets: severities.map(sev => ({
+          label: sev,
+          data: idTypes.map(t => {
+            const found = heatmapRaw.find(d => d.identifier_type===t && d.severity===sev);
+            return found ? found.count : 0;
+          }),
+          backgroundColor: colors[sev],
+          borderWidth: 0,
+          borderRadius: 3,
+        }))
+      },
+      options: {
+        plugins: { legend:{ position:'bottom', labels:{ color:'#94A3B8', font:{size:11} } } },
+        scales: {
+          x: { stacked:true, grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#64748B',font:{size:11}} },
+          y: { stacked:true, grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#64748B',font:{size:11}} }
+        }
+      }
+    });
+
+    // ── Tabs ───────────────────────────────────────────────────────────────────
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      document.getElementById(`tab-${name}`).classList.add('active');
+      document.getElementById(`pane-${name}`).classList.add('active');
+    }
+
+    // ── Manual Add ─────────────────────────────────────────────────────────────
+    async function addManualEntry() {
+      const payload = {
+        identifier:      document.getElementById('m-identifier').value.trim(),
+        identifier_type: document.getElementById('m-type').value,
+        severity:        document.getElementById('m-severity').value,
+        reason:          document.getElementById('m-reason').value.trim(),
+        reported_by:     document.getElementById('m-reported').value.trim(),
+      };
+      if (!payload.identifier) { alert('Identifier is required'); return; }
+      const resp = await fetch('/api/blacklist/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      const el = document.getElementById('manual-result');
+      if (resp.ok && data.inserted) {
+        el.innerHTML = '<span style="color:#34D399"><i class="fa-solid fa-check"></i> Entry added successfully.</span>';
+        showToast('Entry added to blacklist');
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        el.innerHTML = `<span style="color:#F59E0B">${data.message || 'Error'}</span>`;
+      }
+    }
+
+    // ── CSV ────────────────────────────────────────────────────────────────────
+    let selectedFile = null;
+    function previewCSV(input) {
+      selectedFile = input.files[0];
+      if (!selectedFile) return;
+      document.getElementById('csv-preview').textContent = `Selected: ${selectedFile.name} (${(selectedFile.size/1024).toFixed(1)}KB)`;
+      document.getElementById('uploadBtn').style.display = 'inline-flex';
+    }
+    async function uploadCSV() {
+      if (!selectedFile) return;
+      const fd = new FormData();
+      fd.append('file', selectedFile);
+      const resp = await fetch('/api/blacklist/upload-csv', { method:'POST', body:fd });
+      const data = await resp.json();
+      const el = document.getElementById('upload-result');
+      el.innerHTML = `<span style="color:#34D399">Inserted: ${data.inserted}</span> &nbsp;
+        <span style="color:#F59E0B">Skipped: ${data.skipped_duplicates}</span> &nbsp;
+        ${data.errors.length ? `<span style="color:#F87171">Errors: ${data.errors.length}</span>` : ''}`;
+      showToast(`CSV processed — ${data.inserted} inserted`);
+      setTimeout(() => location.reload(), 2000);
+    }
+
+    // Drag & drop
+    const dz = document.getElementById('dropZone');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) { document.getElementById('csvFile').files = e.dataTransfer.files; previewCSV({ files:[file] }); }
+    });
+
+    // ── Delete ────────────────────────────────────────────────────────────────
+    async function deleteEntry(id) {
+      if (!confirm(`Delete blacklist entry #${id}?`)) return;
+      const resp = await fetch(`/api/blacklist/${id}`, { method:'DELETE' });
+      if (resp.ok) {
+        document.getElementById(`bl-row-${id}`)?.remove();
+        showToast('Entry deleted');
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.background = 'rgba(16,185,129,0.9)';
+      t.style.display = 'block';
+      setTimeout(() => t.style.display='none', 3500);
+    }
+  </script>
+</body>
+</html>

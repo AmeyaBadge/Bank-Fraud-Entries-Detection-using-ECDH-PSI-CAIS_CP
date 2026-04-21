@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Bank A — Single Account Lookup</title>
+  <meta name="description" content="PSI-Lite: real-time single account fraud screening via Bloom Filter."/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    :root{--navy:#0A1628;--accent:#2563EB;--green:#10B981;--red:#DC2626;--glass:rgba(255,255,255,0.05);--border:rgba(255,255,255,0.1);}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,var(--navy) 0%,#0F2040 60%,var(--navy) 100%);min-height:100vh;color:#E2E8F0}
+    .sidebar{width:240px;min-height:100vh;background:rgba(10,22,40,0.95);border-right:1px solid var(--border);position:fixed;top:0;left:0;padding:1.5rem 0;display:flex;flex-direction:column;z-index:50}
+    .sidebar-logo{display:flex;align-items:center;gap:0.75rem;padding:0 1.5rem 1.5rem}
+    .sidebar-logo .icon{width:40px;height:40px;background:linear-gradient(135deg,#2563EB,#0EA5E9);border-radius:10px;display:flex;align-items:center;justify-content:center}
+    .sidebar-logo .name{font-weight:700;font-size:1rem}.sidebar-logo .sub{font-size:0.7rem;color:#64748B}
+    nav a{display:flex;align-items:center;gap:0.75rem;padding:0.7rem 1.5rem;color:#94A3B8;text-decoration:none;font-size:0.875rem;transition:all 0.2s;border-left:3px solid transparent}
+    nav a:hover,nav a.active{color:#E2E8F0;background:rgba(37,99,235,0.12);border-left-color:#2563EB}
+    nav a i{width:16px;text-align:center}
+    .sidebar-footer{margin-top:auto;padding:1rem 1.5rem;border-top:1px solid var(--border)}
+    .user-badge{display:flex;align-items:center;gap:0.75rem}
+    .user-avatar{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#7C3AED,#4F46E5);display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600}
+    .user-name{font-size:0.82rem;font-weight:500}.user-role{font-size:0.7rem;color:#64748B}
+    .logout-btn{margin-left:auto;background:none;border:none;color:#64748B;cursor:pointer;font-size:0.85rem;transition:color 0.2s}
+    .logout-btn:hover{color:#DC2626}
+    .main{margin-left:240px;padding:2rem;max-width:calc(100vw - 240px)}
+    .topbar{margin-bottom:2rem}
+    .topbar h1{font-size:1.4rem;font-weight:700}.topbar p{color:#64748B;font-size:0.82rem}
+    .lookup-wrap{max-width:560px}
+    .card{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:1.5rem;backdrop-filter:blur(8px)}
+    .card-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#64748B;margin-bottom:1.25rem}
+    label{display:block;font-size:0.8rem;font-weight:500;color:#94A3B8;margin-bottom:0.4rem}
+    .form-group{margin-bottom:1rem}
+    input[type=text],select{
+      width:100%;padding:0.8rem 1rem;
+      background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
+      border-radius:10px;color:#E2E8F0;font-family:'Inter',sans-serif;font-size:0.9rem;outline:none;
+      transition:border-color 0.2s,box-shadow 0.2s;
+    }
+    input:focus,select:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,0.2)}
+    select option{background:#0A1628}
+    .btn-lookup{width:100%;padding:0.85rem;background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;border:none;border-radius:10px;font-size:0.95rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:transform 0.15s,box-shadow 0.15s;margin-top:0.5rem}
+    .btn-lookup:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 24px rgba(37,99,235,0.4)}
+    .btn-lookup:disabled{opacity:0.5;cursor:not-allowed}
+    .result-card{border-radius:14px;padding:1.5rem;margin-top:1.5rem;display:flex;align-items:center;gap:1.25rem}
+    .result-card.match{background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3)}
+    .result-card.clean{background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3)}
+    .result-icon{font-size:2.5rem}
+    .result-title{font-size:1rem;font-weight:700;margin-bottom:0.25rem}
+    .result-sub{font-size:0.82rem;color:#94A3B8}
+    .latency{font-size:0.75rem;color:#475569;margin-top:1rem}
+    .info-box{background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.2);border-radius:10px;padding:1rem;margin-top:1rem;font-size:0.78rem;color:#93C5FD}
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon"><i class="fa-solid fa-landmark" style="color:#fff"></i></div>
+      <div><div class="name">Bank A</div><div class="sub">Querier Node · Port 5001</div></div>
+    </div>
+    <nav>
+      <a href="/"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+      <a href="/history"><i class="fa-solid fa-clock-rotate-left"></i> PSI History</a>
+      <a href="/lookup" class="active"><i class="fa-solid fa-magnifying-glass"></i> Account Lookup</a>
+      <a href="http://127.0.0.1:5001/docs" target="_blank"><i class="fa-solid fa-book"></i> API Docs</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-badge">
+        <div class="user-avatar">{{ user.username[0].upper() }}</div>
+        <div><div class="user-name">{{ user.username }}</div><div class="user-role">{{ user.role }}</div></div>
+        <form method="POST" action="/ui/logout" style="margin:0">
+          <button type="submit" class="logout-btn"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>PSI-Lite Account Lookup</h1>
+      <p>Real-time single-identifier fraud check via Bloom Filter — sub-100ms response</p>
+    </div>
+
+    <div class="lookup-wrap">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-magnifying-glass"></i> Check an Identifier</div>
+        <div class="form-group">
+          <label for="identifier-input">Identifier Value</label>
+          <input type="text" id="identifier-input" placeholder="e.g. john@email.com or 9812345678" />
+        </div>
+        <div class="form-group">
+          <label for="type-select">Identifier Type</label>
+          <select id="type-select">
+            <option value="email">Email Address</option>
+            <option value="phone">Phone Number</option>
+            <option value="account_number">Account Number</option>
+            <option value="aadhaar">Aadhaar Number</option>
+          </select>
+        </div>
+        <button class="btn-lookup" id="lookupBtn" onclick="doLookup()">
+          <i class="fa-solid fa-shield-halved"></i>&nbsp; Check Fraud Status
+        </button>
+      </div>
+
+      <div id="resultArea"></div>
+
+      <div class="info-box">
+        <i class="fa-solid fa-info-circle"></i>&nbsp;
+        <strong>Privacy guarantee:</strong> Only the ECDH-encrypted EC point representation of this identifier is sent to Bank B.
+        The raw value is never transmitted. Bank B uses a pre-computed Bloom Filter for O(1) membership testing.
+      </div>
+    </div>
+  </main>
+
+  <script>
+    async function doLookup() {
+      const ident = document.getElementById('identifier-input').value.trim();
+      const type  = document.getElementById('type-select').value;
+      const btn   = document.getElementById('lookupBtn');
+      const area  = document.getElementById('resultArea');
+
+      if (!ident) { alert('Please enter an identifier'); return; }
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>&nbsp; Checking…';
+      area.innerHTML = '';
+
+      const resp = await fetch('/api/psi/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: ident, identifier_type: type }),
+      });
+
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-shield-halved"></i>&nbsp; Check Fraud Status';
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        area.innerHTML = `<div class="result-card match">
+          <div class="result-icon">⚠️</div>
+          <div><div class="result-title">Error</div><div class="result-sub">${err.detail || 'Request failed'}</div></div>
+        </div>`;
+        return;
+      }
+
+      const data = await resp.json();
+      if (data.is_match) {
+        area.innerHTML = `<div class="result-card match">
+          <div class="result-icon">🚨</div>
+          <div>
+            <div class="result-title" style="color:#FCA5A5">MATCH FOUND — Flagged on Blacklist</div>
+            <div class="result-sub">This identifier appears in Bank B's fraud registry. Do not proceed.</div>
+            <div class="latency">Lookup ID: ${data.lookup_id} &nbsp;·&nbsp; Latency: ${data.latency_ms}ms</div>
+          </div>
+        </div>`;
+      } else {
+        area.innerHTML = `<div class="result-card clean">
+          <div class="result-icon">✅</div>
+          <div>
+            <div class="result-title" style="color:#34D399">No Match — Account is Clean</div>
+            <div class="result-sub">This identifier was not found on Bank B's fraud blacklist.</div>
+            <div class="latency">Lookup ID: ${data.lookup_id} &nbsp;·&nbsp; Latency: ${data.latency_ms}ms</div>
+          </div>
+        </div>`;
+      }
+    }
+
+    // Allow Enter key to trigger lookup
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLookup();
+    });
+  </script>
+</body>
+</html>

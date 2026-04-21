@@ -1,0 +1,18 @@
+{
+  "seed": 42,
+  "bank_a_total_accounts": 10000,
+  "bank_b_blacklist_size": 2000,
+  "overlap_count": 500,
+  "identifier_mix": {
+    "email": 0.40,
+    "phone": 0.35,
+    "account_number": 0.15,
+    "aadhaar": 0.10
+  },
+  "severity_distribution": {
+    "CRITICAL": 0.10,
+    "HIGH": 0.25,
+    "MEDIUM": 0.40,
+    "LOW": 0.25
+  }
+}
