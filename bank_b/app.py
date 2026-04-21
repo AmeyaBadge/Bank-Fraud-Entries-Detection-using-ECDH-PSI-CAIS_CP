@@ -8,6 +8,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import csv, io, hashlib, uuid, json
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 import uvicorn, requests
@@ -26,9 +27,6 @@ from psi_core.data_normalizer import normalize
 from psi_core.crypto_utils import encrypt_label
 
 # ─── App Setup ────────────────────────────────────────────────────────────────
-
-app = FastAPI(title="Bank B — PSI Responder", version="2.0.0")
-app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET_KEY)
 
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
@@ -50,14 +48,19 @@ def _rebuild_bloom():
     print(f"[Bank B] Bloom Filter rebuilt with {len(bf)} entries.")
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app_: FastAPI):
     db.init_db()
     if not db.get_user(config.DEFAULT_ADMIN_USERNAME):
         pw_hash = generate_password_hash(config.DEFAULT_ADMIN_PASSWORD)
         db.create_user(config.DEFAULT_ADMIN_USERNAME, pw_hash, "admin")
     _rebuild_bloom()
     _register_with_coordinator()
+    yield
+
+
+app = FastAPI(title="Bank B — PSI Responder", version="2.0.0", lifespan=lifespan)
+app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET_KEY)
 
 
 def _register_with_coordinator():

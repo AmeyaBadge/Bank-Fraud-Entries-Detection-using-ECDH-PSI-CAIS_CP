@@ -8,6 +8,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import uuid, hashlib, time, json
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 import httpx
@@ -28,22 +29,22 @@ from psi_core.ecdh_engine import PSIQuerier
 
 # ─── App Setup ────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Bank A — PSI Querier", version="2.0.0")
-app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET_KEY)
-
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app_: FastAPI):
     db.init_db()
-    # Create default admin user
     if not db.get_user(config.DEFAULT_ADMIN_USERNAME):
         pw_hash = generate_password_hash(config.DEFAULT_ADMIN_PASSWORD)
         db.create_user(config.DEFAULT_ADMIN_USERNAME, pw_hash, "admin")
-    # Register with Coordinator
     _register_with_coordinator()
+    yield
+
+
+app = FastAPI(title="Bank A — PSI Querier", version="2.0.0", lifespan=lifespan)
+app.add_middleware(SessionMiddleware, secret_key=config.SESSION_SECRET_KEY)
 
 
 def _register_with_coordinator():

@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import hashlib
 import uuid
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 import httpx
@@ -26,17 +27,16 @@ import coordinator.db_manager as db
 
 # ─── App Setup ────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="PSI Coordinator", version="2.0.0")
+@asynccontextmanager
+async def lifespan(app_: FastAPI):
+    db.init_db()
+    asyncio.create_task(_health_check_loop())
+    yield
+
+app = FastAPI(title="PSI Coordinator", version="2.0.0", lifespan=lifespan)
 
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
-
-# Initialize DB on startup
-@app.on_event("startup")
-async def startup():
-    db.init_db()
-    # Start periodic health-check loop
-    asyncio.create_task(_health_check_loop())
 
 
 # ─── Auth Helper ──────────────────────────────────────────────────────────────
