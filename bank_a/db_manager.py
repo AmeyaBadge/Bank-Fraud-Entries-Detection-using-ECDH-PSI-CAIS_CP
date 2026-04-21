@@ -219,7 +219,7 @@ def get_run_count() -> int:
 def get_total_matches() -> int:
     conn = _get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT COALESCE(SUM(matches_found), 0) FROM psi_runs WHERE status = 'completed'")
+    cur.execute("SELECT COUNT(DISTINCT account_id) FROM psi_matches")
     total = cur.fetchone()[0]
     conn.close()
     return total
